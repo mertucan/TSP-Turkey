@@ -694,6 +694,7 @@
             return {circle, text};
         }
 
+
         // Sıra numarası etiketi çiz
         function drawOrderLabel(svg, x, y, order, svgNS) {
             const circle = document.createElementNS(svgNS, "circle");
@@ -729,12 +730,57 @@
             // Koordinatları ölçeklendir
             const scaledCoords = scaleCoordinates(coordinates, mapWidth, mapHeight);
             
-            // Tüm şehirleri çiz (soluk)
-            for (const city in scaledCoords) {
-                if (route.includes(city)) {
-                    drawPoint(svg, scaledCoords[city].x, scaledCoords[city].y, 4, "#3498db", "", svgNS);
-                } else {
-                    drawPoint(svg, scaledCoords[city].x, scaledCoords[city].y, 2, "#bdc3c7", "", svgNS);
+            // Gradyan tanımla
+            const defs = document.createElementNS(svgNS, "defs");
+            svg.appendChild(defs);
+            
+            // Çizgi gradyanı
+            const lineGradient = document.createElementNS(svgNS, "linearGradient");
+            lineGradient.setAttribute("id", "routeGradient");
+            lineGradient.setAttribute("gradientUnits", "userSpaceOnUse");
+            
+            const stop1 = document.createElementNS(svgNS, "stop");
+            stop1.setAttribute("offset", "0%");
+            stop1.setAttribute("stop-color", "#3498db");
+            
+            const stop2 = document.createElementNS(svgNS, "stop");
+            stop2.setAttribute("offset", "100%");
+            stop2.setAttribute("stop-color", "#e74c3c");
+            
+            lineGradient.appendChild(stop1);
+            lineGradient.appendChild(stop2);
+            defs.appendChild(lineGradient);
+            
+            // Nokta efekti için glow efekti
+            const glowEffect = document.createElementNS(svgNS, "filter");
+            glowEffect.setAttribute("id", "glow");
+            
+            const feGaussianBlur = document.createElementNS(svgNS, "feGaussianBlur");
+            feGaussianBlur.setAttribute("stdDeviation", "2.5");
+            feGaussianBlur.setAttribute("result", "coloredBlur");
+            
+            const feMerge = document.createElementNS(svgNS, "feMerge");
+            const feMergeNode1 = document.createElementNS(svgNS, "feMergeNode");
+            feMergeNode1.setAttribute("in", "coloredBlur");
+            const feMergeNode2 = document.createElementNS(svgNS, "feMergeNode");
+            feMergeNode2.setAttribute("in", "SourceGraphic");
+            
+            feMerge.appendChild(feMergeNode1);
+            feMerge.appendChild(feMergeNode2);
+            glowEffect.appendChild(feGaussianBlur);
+            glowEffect.appendChild(feMerge);
+            defs.appendChild(glowEffect);
+            
+            // Şehir noktalarını çiz (küçük, daha hafif noktalar)
+            for (const city of route) {
+                if (scaledCoords[city]) {
+                    const circle = document.createElementNS(svgNS, "circle");
+                    circle.setAttribute("cx", scaledCoords[city].x);
+                    circle.setAttribute("cy", scaledCoords[city].y);
+                    circle.setAttribute("r", 3);
+                    circle.setAttribute("fill", "#3498db");
+                    circle.setAttribute("opacity", "0.6");
+                    svg.appendChild(circle);
                 }
             }
             
@@ -751,36 +797,107 @@
                     const toCoord = scaledCoords[toCity];
                     
                     if (fromCoord && toCoord) {
-                        // Rota çizgisi çiz
-                        const line = drawLine(
-                            svg, 
-                            fromCoord.x, 
-                            fromCoord.y, 
-                            toCoord.x, 
-                            toCoord.y, 
-                            "#e74c3c", // kırmızı
-                            2, 
-                            0.7,
-                            svgNS
-                        );
+                        // Güzel eğrisel çizgi oluştur
+                        const path = document.createElementNS(svgNS, "path");
                         
-                        // Başlangıç şehrini vurgula
-                        if (step === 0) {
-                            drawPoint(svg, fromCoord.x, fromCoord.y, 8, "#e74c3c", fromCity, svgNS);
-                            drawOrderLabel(svg, fromCoord.x, fromCoord.y, 1, svgNS);
-                        }
+                        // Eğri kontrolü için offset hesapla
+                        const dx = toCoord.x - fromCoord.x;
+                        const dy = toCoord.y - fromCoord.y;
+                        const calculatedDistance = Math.sqrt(dx * dx + dy * dy);
                         
-                        // Hedef şehri vurgula
-                        drawPoint(svg, toCoord.x, toCoord.y, 8, "#e74c3c", toCity, svgNS);
-                        drawOrderLabel(svg, toCoord.x, toCoord.y, step + 2, svgNS);
+                        // Eğriliği mesafeye göre ayarla
+                        const curveOffset = Math.min(calculatedDistance * 0.15, 30);
+                        
+                        // Kontrol noktalarını hesapla (hafif kavisli rota için)
+                        const midX = (fromCoord.x + toCoord.x) / 2;
+                        const midY = (fromCoord.y + toCoord.y) / 2 - curveOffset;
+                        
+                        // Path özelliklerini ayarla
+                        path.setAttribute("d", `M ${fromCoord.x} ${fromCoord.y} Q ${midX} ${midY} ${toCoord.x} ${toCoord.y}`);
+                        path.setAttribute("stroke", "url(#routeGradient)");
+                        path.setAttribute("stroke-width", 3);
+                        path.setAttribute("fill", "none");
+                        path.setAttribute("stroke-linecap", "round");
+                        path.setAttribute("stroke-opacity", 0.8);
+                        path.setAttribute("stroke-dasharray", calculatedDistance);
+                        path.setAttribute("stroke-dashoffset", calculatedDistance);
+                        svg.appendChild(path);
                         
                         // Çizgi animasyonu
-                        line.setAttribute("stroke-dasharray", "5,5");
-                        line.style.animation = "dash 1s linear infinite";
+                        path.style.transition = `stroke-dashoffset 0.8s ease-in-out`;
+                        setTimeout(() => {
+                            path.style.strokeDashoffset = "0";
+                        }, 100);
                         
-                        // Mesafe bilgisini göster
-                        const midX = (fromCoord.x + toCoord.x) / 2;
-                        const midY = (fromCoord.y + toCoord.y) / 2;
+                        // Başlangıç şehrini vurgula ve numaralı etiket ekle
+                        if (step === 0) {
+                            const startPoint = document.createElementNS(svgNS, "circle");
+                            startPoint.setAttribute("cx", fromCoord.x);
+                            startPoint.setAttribute("cy", fromCoord.y);
+                            startPoint.setAttribute("r", 8);
+                            startPoint.setAttribute("fill", "#3498db");
+                            startPoint.setAttribute("filter", "url(#glow)");
+                            startPoint.style.opacity = 0;
+                            svg.appendChild(startPoint);
+                            
+                            // Başlangıç noktası animasyonu
+                            setTimeout(() => {
+                                startPoint.style.transition = "opacity 0.5s ease, r 0.3s ease";
+                                startPoint.style.opacity = 1;
+                            }, 100);
+                            
+                            // Numara etiketi
+                            const orderLabel = document.createElementNS(svgNS, "text");
+                            orderLabel.setAttribute("x", fromCoord.x);
+                            orderLabel.setAttribute("y", fromCoord.y + 3);
+                            orderLabel.setAttribute("fill", "white");
+                            orderLabel.setAttribute("text-anchor", "middle");
+                            orderLabel.setAttribute("font-size", "10px");
+                            orderLabel.setAttribute("font-weight", "bold");
+                            orderLabel.textContent = "1";
+                            orderLabel.style.opacity = 0;
+                            svg.appendChild(orderLabel);
+                            
+                            setTimeout(() => {
+                                orderLabel.style.transition = "opacity 0.5s ease";
+                                orderLabel.style.opacity = 1;
+                            }, 300);
+                        }
+                        
+                        // Hedef şehri vurgula ve numaralı etiket ekle
+                        const endPoint = document.createElementNS(svgNS, "circle");
+                        endPoint.setAttribute("cx", toCoord.x);
+                        endPoint.setAttribute("cy", toCoord.y);
+                        endPoint.setAttribute("r", 8);
+                        endPoint.setAttribute("fill", "#e74c3c");
+                        endPoint.setAttribute("filter", "url(#glow)");
+                        endPoint.style.opacity = 0;
+                        svg.appendChild(endPoint);
+                        
+                        setTimeout(() => {
+                            endPoint.style.transition = "opacity 0.5s ease, r 0.3s ease";
+                            endPoint.style.opacity = 1;
+                        }, 800);
+                        
+                        // Numara etiketi
+                        const orderLabel = document.createElementNS(svgNS, "text");
+                        orderLabel.setAttribute("x", toCoord.x);
+                        orderLabel.setAttribute("y", toCoord.y + 3);
+                        orderLabel.setAttribute("fill", "white");
+                        orderLabel.setAttribute("text-anchor", "middle");
+                        orderLabel.setAttribute("font-size", "10px");
+                        orderLabel.setAttribute("font-weight", "bold");
+                        orderLabel.textContent = (step + 2).toString();
+                        orderLabel.style.opacity = 0;
+                        svg.appendChild(orderLabel);
+                        
+                        setTimeout(() => {
+                            orderLabel.style.transition = "opacity 0.5s ease";
+                            orderLabel.style.opacity = 1;
+                        }, 1000);
+                        
+                        // Mesafe bilgisini göster (modern, yuvarlak kenarlı etiket)
+                        const midPoint = path.getPointAtLength(path.getTotalLength() / 2);
                         
                         // İlgili mesafeyi bul
                         let distance = "?";
@@ -791,45 +908,46 @@
                             }
                         }
                         
+                        // Mesafe etiketi arka planı
+                        const distanceBg = document.createElementNS(svgNS, "rect");
+                        distanceBg.setAttribute("x", midPoint.x - 20);
+                        distanceBg.setAttribute("y", midPoint.y - 23);
+                        distanceBg.setAttribute("width", 40);
+                        distanceBg.setAttribute("height", 20);
+                        distanceBg.setAttribute("rx", 10);
+                        distanceBg.setAttribute("ry", 10);
+                        distanceBg.setAttribute("fill", "white");
+                        distanceBg.setAttribute("stroke", "#e74c3c");
+                        distanceBg.setAttribute("stroke-width", "1");
+                        distanceBg.setAttribute("opacity", "0.9");
+                        distanceBg.style.opacity = 0;
+                        svg.appendChild(distanceBg);
+                        
+                        // Mesafe etiketi metni
                         const distanceText = document.createElementNS(svgNS, "text");
-                        distanceText.setAttribute("x", midX);
-                        distanceText.setAttribute("y", midY - 10);
+                        distanceText.setAttribute("x", midPoint.x);
+                        distanceText.setAttribute("y", midPoint.y - 8);
                         distanceText.setAttribute("text-anchor", "middle");
                         distanceText.setAttribute("fill", "#2c3e50");
                         distanceText.setAttribute("font-size", "10px");
                         distanceText.setAttribute("font-weight", "bold");
-                        distanceText.setAttribute("background", "white");
                         distanceText.textContent = `${distance} km`;
-                        
-                        // Arka plan beyaz dikdörtgen ekle
-                        const textBBox = distanceText.getBBox ? distanceText.getBBox() : {width: 40, height: 14};
-                        const rect = document.createElementNS(svgNS, "rect");
-                        rect.setAttribute("x", midX - textBBox.width / 2 - 3);
-                        rect.setAttribute("y", midY - 10 - textBBox.height + 3);
-                        rect.setAttribute("width", textBBox.width + 6);
-                        rect.setAttribute("height", textBBox.height + 3);
-                        rect.setAttribute("fill", "white");
-                        rect.setAttribute("fill-opacity", "0.8");
-                        rect.setAttribute("rx", "3");
-                        svg.appendChild(rect);
+                        distanceText.style.opacity = 0;
                         svg.appendChild(distanceText);
+                        
+                        setTimeout(() => {
+                            distanceBg.style.transition = "opacity 0.5s ease";
+                            distanceBg.style.opacity = 0.9;
+                            
+                            distanceText.style.transition = "opacity 0.5s ease";
+                            distanceText.style.opacity = 1;
+                        }, 1200);
                     }
                     
                     step++;
                     setTimeout(animateStep, animationDelay);
                 }
             }
-            
-            // CSS stil ekle
-            const style = document.createElement('style');
-            style.textContent = `
-                @keyframes dash {
-                    to {
-                        stroke-dashoffset: 20;
-                    }
-                }
-            `;
-            document.head.appendChild(style);
             
             // Animasyonu başlat
             animateStep();
@@ -1213,17 +1331,18 @@
                     // Detaylı mesafeleri göster
                     const detailedDistancesContainer = document.getElementById('detailed-distances');
                     detailedDistancesContainer.innerHTML = '<ul>';
-                    
-                    detailedDistances.forEach(segment => {
+
+                    detailedDistances.forEach((segment, index) => {
                         detailedDistancesContainer.innerHTML += `
                             <li>
-                                <span><i class="fas fa-arrow-right"></i> ${segment.from} → ${segment.to}</span>
+                                <span><strong>${index + 1}.</strong> ${segment.from} → ${segment.to}</span>
                                 <strong>${segment.distance} km</strong>
                             </li>
                         `;
                     });
-                    
+
                     detailedDistancesContainer.innerHTML += '</ul>';
+
                     resultDiv.classList.add('visible');
                     
                     // Sonuca kaydır
@@ -1348,10 +1467,6 @@
                 <div class="legend-item">
                     <div class="legend-color" style="background-color: #e74c3c;"></div>
                     <span>Rota Şehirleri</span>
-                </div>
-                <div class="legend-item">
-                    <div class="legend-color" style="background-color: #bdc3c7;"></div>
-                    <span>Diğer Şehirler</span>
                 </div>
                 <div class="legend-item">
                     <div style="width: 15px; height: 2px; background-color: #e74c3c; margin-right: 8px;"></div>
