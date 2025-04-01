@@ -6,6 +6,106 @@
     <title>Gezgin Satıcı Problemi</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
+        /* Harita ve SVG katmanı stilleri */
+        .map-container {
+            position: relative;
+            border-radius: var(--border-radius);
+            overflow: hidden;
+            box-shadow: var(--shadow);
+            margin-bottom: 30px;
+            background-color: white;
+        }
+
+        #route-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .city-point {
+            transition: all 0.3s ease;
+        }
+
+        .city-point:hover {
+            r: 8;
+        }
+
+        .city-label {
+            font-size: 10px;
+            font-weight: bold;
+            fill: var(--primary-color);
+            text-anchor: middle;
+            pointer-events: none;
+        }
+
+        .route-line {
+            stroke-dasharray: 5, 5;
+            animation: dash 1s linear infinite;
+        }
+
+        .distance-label {
+            font-size: 10px;
+            font-weight: bold;
+            fill: var(--primary-color);
+            text-anchor: middle;
+            background: white;
+            padding: 2px 4px;
+        }
+
+        .order-number {
+            font-size: 10px;
+            font-weight: bold;
+            fill: white;
+            text-anchor: middle;
+            pointer-events: none;
+        }
+
+        @keyframes dash {
+            to {
+                stroke-dashoffset: 20;
+            }
+        }
+
+        .legend {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            background-color: rgba(255, 255, 255, 0.8);
+            padding: 10px;
+            border-radius: var(--border-radius);
+            font-size: 12px;
+            box-shadow: var(--shadow);
+            z-index: 20;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+
+        .legend-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            margin-right: 8px;
+            border-radius: 50%;
+        }
+
+        /* Animasyon için stil */
+        @keyframes appear {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .animated {
+            animation: appear 0.5s forwards;
+        }
         :root {
             --primary-color: #2c3e50;
             --secondary-color: #3498db;
@@ -391,7 +491,7 @@
     <script>
         // Şehir verilerini yükleme
         const cities = [
-        "ADANA", "ADIYAMAN", "AFYON", "AĞRI", "AMASYA", "ANKARA", "ANTALYA", "ARTVİN", 
+        "ADANA", "ADIYAMAN", "AFYONKARAHİSAR", "AĞRI", "AMASYA", "ANKARA", "ANTALYA", "ARTVİN", 
         "AYDIN", "BALIKESİR", "BİLECİK", "BİNGÖL", "BİTLİS", "BOLU", "BURDUR", "BURSA", 
         "ÇANAKKALE", "ÇANKIRI", "ÇORUM", "DENİZLİ", "DİYARBAKIR", "EDİRNE", "ELAZIĞ", 
         "ERZİNCAN", "ERZURUM", "ESKİŞEHİR", "GAZİANTEP", "GİRESUN", "GÜMÜŞHANE", "HAKKARİ", 
@@ -403,6 +503,91 @@
         "KARAMAN", "KIRIKKALE", "BATMAN", "ŞIRNAK", "BARTIN", "ARDAHAN", "IĞDIR", "YALOVA", 
         "KARABÜK", "KİLİS", "OSMANİYE", "DÜZCE"
         ];
+
+        const cityCoordinates = {
+            "ADANA": {x: 492, y: 444},
+            "ADIYAMAN": {x: 645, y: 384},
+            "AFYONKARAHİSAR": {x: 265, y: 310},
+            "AĞRI": {x: 870, y: 200},
+            "AMASYA": {x: 520, y: 160},
+            "ANKARA": {x: 375, y: 215},
+            "ANTALYA": {x: 270, y: 440},
+            "ARTVİN": {x: 810, y: 100},
+            "AYDIN": {x: 125, y: 367},
+            "BALIKESİR": {x: 130, y: 232},
+            "BİLECİK": {x: 240, y: 195},
+            "BİNGÖL": {x: 760, y: 285},
+            "BİTLİS": {x: 830, y: 310},
+            "BOLU": {x: 320, y: 150},
+            "BURDUR": {x: 245, y: 385},
+            "BURSA": {x: 195, y: 190},
+            "ÇANAKKALE": {x: 70, y: 180},
+            "ÇANKIRI": {x: 422, y: 163},
+            "ÇORUM": {x: 485, y: 165},
+            "DENİZLİ": {x: 185, y: 370},
+            "DİYARBAKIR": {x: 740, y: 355},
+            "EDİRNE": {x: 77, y: 55},
+            "ELAZIĞ": {x: 690, y: 295},
+            "ERZİNCAN": {x: 700, y: 220},
+            "ERZURUM": {x: 780, y: 200},
+            "ESKİŞEHİR": {x: 260, y: 220},
+            "GAZİANTEP": {x: 600, y: 430},
+            "GİRESUN": {x: 645, y: 135},
+            "GÜMÜŞHANE": {x: 695, y: 170},
+            "HAKKARİ": {x: 920, y: 370},
+            "HATAY": {x: 540, y: 500},
+            "ISPARTA": {x: 260, y: 380},
+            "MERSİN": {x: 470, y: 455},
+            "İSTANBUL": {x: 200, y: 115},
+            "İZMİR": {x: 88, y: 325},
+            "KARS": {x: 864, y: 145},
+            "KASTAMONU": {x: 420, y: 100},
+            "KAYSERİ": {x: 510, y: 310},
+            "KIRKLARELİ": {x: 110, y: 55},
+            "KIRŞEHİR": {x: 440, y: 270},
+            "KOCAELİ": {x: 235, y: 140},
+            "KONYA": {x: 360, y: 375},
+            "KÜTAHYA": {x: 240, y: 250},
+            "MALATYA": {x: 640, y: 330},
+            "MANİSA": {x: 110, y: 300},
+            "KAHRAMANMARAŞ": {x: 570, y: 390},
+            "MARDİN": {x: 770, y: 400},
+            "MUĞLA": {x: 150, y: 410},
+            "MUŞ": {x: 800, y: 285},
+            "NEVŞEHİR": {x: 470, y: 320},
+            "NİĞDE": {x: 470, y: 368},
+            "ORDU": {x: 620, y: 135},
+            "RİZE": {x: 750, y: 120},
+            "SAKARYA": {x: 260, y: 140},
+            "SAMSUN": {x: 535, y: 110},
+            "SİİRT": {x: 830, y: 345},
+            "SİNOP": {x: 480, y: 60},
+            "SİVAS": {x: 580, y: 230},
+            "TEKİRDAĞ": {x: 120, y: 115},
+            "TOKAT": {x: 550, y: 185},
+            "TRABZON": {x: 705, y: 125},
+            "TUNCELİ": {x: 705, y: 265},
+            "ŞANLIURFA": {x: 680, y: 420},
+            "UŞAK": {x: 210, y: 310},
+            "VAN": {x: 900, y: 300},
+            "YOZGAT": {x: 470, y: 220},
+            "ZONGULDAK": {x: 325, y: 90},
+            "AKSARAY": {x: 430, y: 340},
+            "BAYBURT": {x: 730, y: 170},
+            "KARAMAN": {x: 390, y: 425},
+            "KIRIKKALE": {x: 410, y: 225},
+            "BATMAN": {x: 790, y: 360},
+            "ŞIRNAK": {x: 850, y: 380},
+            "BARTIN": {x: 360, y: 80},
+            "ARDAHAN": {x: 850, y: 100},
+            "IĞDIR": {x: 920, y: 180},
+            "YALOVA": {x: 200, y: 150},
+            "KARABÜK": {x: 365, y: 115},
+            "KİLİS": {x: 590, y: 465},
+            "OSMANİYE": {x: 550, y: 430},
+            "DÜZCE": {x: 295, y: 135}
+        };
+        
         
         // Mesafeler için örnek veri yapısı
         // Gerçek uygulamada, mesafe verileri bir dosyadan veya API'den alınır
@@ -418,6 +603,237 @@
                 }
             });
         });
+
+        // SVG elementi oluştur ve haritanın üzerine ekle
+        function createMapOverlay() {
+            // Mevcut bir SVG varsa temizle
+            const existingSvg = document.getElementById('route-overlay');
+            if (existingSvg) {
+                existingSvg.remove();
+            }
+            
+            const mapContainer = document.querySelector('.map-container');
+            const mapImage = document.getElementById('map-image');
+            
+            // Harita boyutlarını al
+            const mapWidth = mapImage.clientWidth;
+            const mapHeight = mapImage.clientHeight;
+            
+            // SVG oluştur
+            const svgNS = "http://www.w3.org/2000/svg";
+            const svg = document.createElementNS(svgNS, "svg");
+            svg.setAttribute("id", "route-overlay");
+            svg.setAttribute("width", mapWidth);
+            svg.setAttribute("height", mapHeight);
+            svg.style.position = "absolute";
+            svg.style.top = mapImage.offsetTop + "px";
+            svg.style.left = mapImage.offsetLeft + "px";
+            svg.style.pointerEvents = "none"; // Harita etkilileşimlerini engellememek için
+            
+            mapContainer.style.position = "relative"; // SVG'yi doğru konumlandırmak için
+            mapContainer.appendChild(svg);
+            
+            return svg;
+        }
+
+        // Koordinatları harita boyutuna göre ölçeklendir
+        function scaleCoordinates(coordinates, mapWidth, mapHeight) {
+            // Base dimensions the coordinates are designed for
+            const baseWidth = 1000;
+            const baseHeight = 600;
+            
+            const scaleX = mapWidth / baseWidth;
+            const scaleY = mapHeight / baseHeight;
+            
+            const scaledCoords = {};
+            
+            for (const city in coordinates) {
+                scaledCoords[city] = {
+                    x: coordinates[city].x * scaleX,
+                    y: coordinates[city].y * scaleY
+                };
+            }
+            
+            return scaledCoords;
+        }
+
+        // İki nokta arasında çizgi çiz
+        function drawLine(svg, x1, y1, x2, y2, color, thickness, opacity, svgNS) {
+            const line = document.createElementNS(svgNS, "line");
+            line.setAttribute("x1", x1);
+            line.setAttribute("y1", y1);
+            line.setAttribute("x2", x2);
+            line.setAttribute("y2", y2);
+            line.setAttribute("stroke", color);
+            line.setAttribute("stroke-width", thickness);
+            line.setAttribute("stroke-opacity", opacity);
+            svg.appendChild(line);
+            return line;
+        }
+
+        // Bir nokta çiz (şehir)
+        function drawPoint(svg, x, y, radius, color, cityName, svgNS) {
+            const circle = document.createElementNS(svgNS, "circle");
+            circle.setAttribute("cx", x);
+            circle.setAttribute("cy", y);
+            circle.setAttribute("r", radius);
+            circle.setAttribute("fill", color);
+            svg.appendChild(circle);
+            
+            // Şehir ismi etiketi
+            const text = document.createElementNS(svgNS, "text");
+            text.setAttribute("x", x);
+            text.setAttribute("y", y - radius - 5);
+            text.setAttribute("text-anchor", "middle");
+            text.setAttribute("fill", "#2c3e50");
+            text.setAttribute("font-size", "10px");
+            text.setAttribute("font-weight", "bold");
+            text.textContent = cityName;
+            svg.appendChild(text);
+            
+            return {circle, text};
+        }
+
+        // Sıra numarası etiketi çiz
+        function drawOrderLabel(svg, x, y, order, svgNS) {
+            const circle = document.createElementNS(svgNS, "circle");
+            circle.setAttribute("cx", x);
+            circle.setAttribute("cy", y);
+            circle.setAttribute("r", 8);
+            circle.setAttribute("fill", "#e74c3c");
+            svg.appendChild(circle);
+            
+            const text = document.createElementNS(svgNS, "text");
+            text.setAttribute("x", x);
+            text.setAttribute("y", y + 3);
+            text.setAttribute("text-anchor", "middle");
+            text.setAttribute("fill", "white");
+            text.setAttribute("font-size", "10px");
+            text.setAttribute("font-weight", "bold");
+            text.textContent = order;
+            svg.appendChild(text);
+            
+            return {circle, text};
+        }
+
+        // Rota animasyonu
+        function animateRoute(route, coordinates, detailedDistances) {
+            const svg = createMapOverlay();
+            const svgNS = "http://www.w3.org/2000/svg";
+            
+            // Harita boyutunu al
+            const mapImage = document.getElementById('map-image');
+            const mapWidth = mapImage.clientWidth;
+            const mapHeight = mapImage.clientHeight;
+            
+            // Koordinatları ölçeklendir
+            const scaledCoords = scaleCoordinates(coordinates, mapWidth, mapHeight);
+            
+            // Tüm şehirleri çiz (soluk)
+            for (const city in scaledCoords) {
+                if (route.includes(city)) {
+                    drawPoint(svg, scaledCoords[city].x, scaledCoords[city].y, 4, "#3498db", "", svgNS);
+                } else {
+                    drawPoint(svg, scaledCoords[city].x, scaledCoords[city].y, 2, "#bdc3c7", "", svgNS);
+                }
+            }
+            
+            // Rota çizgilerini ve noktalarını animasyonlu göster
+            let step = 0;
+            let animationDelay = 500; // milisaniye cinsinden adımlar arası gecikme
+            
+            function animateStep() {
+                if (step < route.length - 1) {
+                    const fromCity = route[step];
+                    const toCity = route[step + 1];
+                    
+                    const fromCoord = scaledCoords[fromCity];
+                    const toCoord = scaledCoords[toCity];
+                    
+                    if (fromCoord && toCoord) {
+                        // Rota çizgisi çiz
+                        const line = drawLine(
+                            svg, 
+                            fromCoord.x, 
+                            fromCoord.y, 
+                            toCoord.x, 
+                            toCoord.y, 
+                            "#e74c3c", // kırmızı
+                            2, 
+                            0.7,
+                            svgNS
+                        );
+                        
+                        // Başlangıç şehrini vurgula
+                        if (step === 0) {
+                            drawPoint(svg, fromCoord.x, fromCoord.y, 8, "#e74c3c", fromCity, svgNS);
+                            drawOrderLabel(svg, fromCoord.x, fromCoord.y, 1, svgNS);
+                        }
+                        
+                        // Hedef şehri vurgula
+                        drawPoint(svg, toCoord.x, toCoord.y, 8, "#e74c3c", toCity, svgNS);
+                        drawOrderLabel(svg, toCoord.x, toCoord.y, step + 2, svgNS);
+                        
+                        // Çizgi animasyonu
+                        line.setAttribute("stroke-dasharray", "5,5");
+                        line.style.animation = "dash 1s linear infinite";
+                        
+                        // Mesafe bilgisini göster
+                        const midX = (fromCoord.x + toCoord.x) / 2;
+                        const midY = (fromCoord.y + toCoord.y) / 2;
+                        
+                        // İlgili mesafeyi bul
+                        let distance = "?";
+                        for (const segment of detailedDistances) {
+                            if (segment.from === fromCity && segment.to === toCity) {
+                                distance = segment.distance;
+                                break;
+                            }
+                        }
+                        
+                        const distanceText = document.createElementNS(svgNS, "text");
+                        distanceText.setAttribute("x", midX);
+                        distanceText.setAttribute("y", midY - 10);
+                        distanceText.setAttribute("text-anchor", "middle");
+                        distanceText.setAttribute("fill", "#2c3e50");
+                        distanceText.setAttribute("font-size", "10px");
+                        distanceText.setAttribute("font-weight", "bold");
+                        distanceText.setAttribute("background", "white");
+                        distanceText.textContent = `${distance} km`;
+                        
+                        // Arka plan beyaz dikdörtgen ekle
+                        const textBBox = distanceText.getBBox ? distanceText.getBBox() : {width: 40, height: 14};
+                        const rect = document.createElementNS(svgNS, "rect");
+                        rect.setAttribute("x", midX - textBBox.width / 2 - 3);
+                        rect.setAttribute("y", midY - 10 - textBBox.height + 3);
+                        rect.setAttribute("width", textBBox.width + 6);
+                        rect.setAttribute("height", textBBox.height + 3);
+                        rect.setAttribute("fill", "white");
+                        rect.setAttribute("fill-opacity", "0.8");
+                        rect.setAttribute("rx", "3");
+                        svg.appendChild(rect);
+                        svg.appendChild(distanceText);
+                    }
+                    
+                    step++;
+                    setTimeout(animateStep, animationDelay);
+                }
+            }
+            
+            // CSS stil ekle
+            const style = document.createElement('style');
+            style.textContent = `
+                @keyframes dash {
+                    to {
+                        stroke-dashoffset: 20;
+                    }
+                }
+            `;
+            document.head.appendChild(style);
+            
+            // Animasyonu başlat
+            animateStep();
+        }
         
         // Select elemanını doldur
         function populateSelect(select, cities) {
@@ -864,6 +1280,173 @@
                 alert('Uygulama başlatılırken bir hata oluştu. Lütfen sayfayı yenileyin.');
             }
         });
+
+        // Hesaplama butonunun olay dinleyicisini güncelle
+        document.addEventListener('DOMContentLoaded', () => {
+            const calculateButton = document.getElementById('calculate');
+            
+            // Mevcut event listener'ı koru ve üzerine yeni işlev ekle
+            const originalClickListener = calculateButton.onclick;
+            
+            calculateButton.addEventListener('click', function() {
+                setTimeout(() => {
+                    // Sonuç gösteriliyorsa ve rota varsa haritada göster
+                    const resultDiv = document.getElementById('result');
+                    if (resultDiv.classList.contains('visible')) {
+                        // Rota ve detaylı mesafeleri al
+                        const routeDisplay = document.getElementById('route-display').textContent;
+                        if (routeDisplay) {
+                            // Rotayı metin içeriğinden çıkar
+                            const routeText = routeDisplay.replace(/\s*→\s*/g, ',');
+                            const route = routeText.split(',').map(city => city.trim());
+                            
+                            // Detaylı mesafeleri al
+                            const detailedDistancesContainer = document.getElementById('detailed-distances');
+                            const distanceItems = detailedDistancesContainer.querySelectorAll('li');
+                            
+                            const detailedDistances = Array.from(distanceItems).map(item => {
+                                const text = item.textContent.trim();
+                                const fromTo = text.match(/→\s*([A-ZĞÜŞİÖÇ]+)\s*→\s*([A-ZĞÜŞİÖÇ]+)/);
+                                const distanceMatch = text.match(/(\d+)\s*km/);
+                                
+                                if (fromTo && distanceMatch) {
+                                    return {
+                                        from: fromTo[1].trim(),
+                                        to: fromTo[2].trim(),
+                                        distance: parseInt(distanceMatch[1], 10)
+                                    };
+                                }
+                                
+                                return null;
+                            }).filter(item => item !== null);
+                            
+                            // Rotayı haritada göster
+                            animateRoute(route, cityCoordinates, detailedDistances);
+                            
+                            // Haritaya kaydır
+                            document.querySelector('.map-container').scrollIntoView({ behavior: 'smooth' });
+                        }
+                    }
+                }, 600); // Hesaplama sonrasında çalışması için hafif gecikme
+            });
+        });
+
+        // Harita lejantını oluştur
+        function createMapLegend() {
+            const mapContainer = document.querySelector('.map-container');
+            
+            // Mevcut bir lejant varsa kaldır
+            const existingLegend = document.querySelector('.legend');
+            if (existingLegend) {
+                existingLegend.remove();
+            }
+            
+            const legend = document.createElement('div');
+            legend.className = 'legend';
+            
+            legend.innerHTML = `
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #e74c3c;"></div>
+                    <span>Rota Şehirleri</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #bdc3c7;"></div>
+                    <span>Diğer Şehirler</span>
+                </div>
+                <div class="legend-item">
+                    <div style="width: 15px; height: 2px; background-color: #e74c3c; margin-right: 8px;"></div>
+                    <span>Rota</span>
+                </div>
+            `;
+            
+            mapContainer.appendChild(legend);
+        }
+
+        // Orijinal calculateRoute fonksiyonunu değiştir
+        const originalCalculateRoute = calculateRoute;
+
+        calculateRoute = function(distances) {
+            // Önce orijinal fonksiyonu çağır
+            originalCalculateRoute(distances);
+            
+            // Sonuç gösteriliyorsa ve rota varsa haritada göster
+            setTimeout(() => {
+                const resultDiv = document.getElementById('result');
+                if (resultDiv.classList.contains('visible')) {
+                    // Rota verilerini al
+                    const routeDisplay = document.getElementById('route-display');
+                    if (routeDisplay && routeDisplay.textContent) {
+                        // Rota bilgisini ayıkla
+                        const routeText = routeDisplay.innerHTML;
+                        const cities = Array.from(routeDisplay.querySelectorAll('span')).map(span => span.textContent.trim());
+                        
+                        // Detaylı mesafeleri al
+                        const detailedDistancesContainer = document.getElementById('detailed-distances');
+                        const distanceItems = detailedDistancesContainer.querySelectorAll('li');
+                        
+                        const detailedDistances = Array.from(distanceItems).map(item => {
+                            const fromToMatch = item.textContent.match(/([A-ZĞÜŞİÖÇ]+)\s*→\s*([A-ZĞÜŞİÖÇ]+)/);
+                            const distanceMatch = item.textContent.match(/(\d+)\s*km/);
+                            
+                            if (fromToMatch && distanceMatch) {
+                                return {
+                                    from: fromToMatch[1].trim(),
+                                    to: fromToMatch[2].trim(),
+                                    distance: parseInt(distanceMatch[1], 10)
+                                };
+                            }
+                            
+                            return null;
+                        }).filter(item => item !== null);
+                        
+                        // Lejantı oluştur
+                        createMapLegend();
+                        
+                        // Rotayı haritada göster
+                        animateRoute(cities, cityCoordinates, detailedDistances);
+                        
+                        // Haritaya kaydır
+                        document.querySelector('.map-container').scrollIntoView({ behavior: 'smooth' });
+                    }
+                }
+            }, 600);
+        };
+
+        // Sayfa boyutu değiştiğinde haritayı güncelle
+        window.addEventListener('resize', function() {
+            // Eğer rota çizilmişse, boyut değişiminde yeniden çiz
+            const routeOverlay = document.getElementById('route-overlay');
+            const resultDiv = document.getElementById('result');
+            
+            if (routeOverlay && resultDiv.classList.contains('visible')) {
+                // Rota bilgilerini yeniden al
+                const routeDisplay = document.getElementById('route-display');
+                if (routeDisplay && routeDisplay.textContent) {
+                    const cities = Array.from(routeDisplay.querySelectorAll('span')).map(span => span.textContent.trim());
+                    
+                    const detailedDistancesContainer = document.getElementById('detailed-distances');
+                    const distanceItems = detailedDistancesContainer.querySelectorAll('li');
+                    
+                    const detailedDistances = Array.from(distanceItems).map(item => {
+                        const fromToMatch = item.textContent.match(/([A-ZĞÜŞİÖÇ]+)\s*→\s*([A-ZĞÜŞİÖÇ]+)/);
+                        const distanceMatch = item.textContent.match(/(\d+)\s*km/);
+                        
+                        if (fromToMatch && distanceMatch) {
+                            return {
+                                from: fromToMatch[1].trim(),
+                                to: fromToMatch[2].trim(),
+                                distance: parseInt(distanceMatch[1], 10)
+                            };
+                        }
+                        
+                        return null;
+                    }).filter(item => item !== null);
+                    
+                    // Rotayı haritada yeniden göster
+                    animateRoute(cities, cityCoordinates, detailedDistances);
+                }
+            }
+        }, 250);
     </script>
 </body>
 </html>
