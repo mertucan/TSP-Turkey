@@ -431,7 +431,7 @@
     
     <div class="map-container">
         <div class="map-title">TÜRKİYE HARİTASI</div>
-        <img src="\public\img\hmap0025-harita-duvar-kagidi-ev-dekorasyon-turkiye-haritasi.jpg" alt="Türkiye Haritası" id="map-image">
+        <img src="\img\hmap0025-harita-duvar-kagidi-ev-dekorasyon-turkiye-haritasi.jpg" alt="Türkiye Haritası" id="map-image">
     </div>
     
     <div class="app-container">
@@ -1135,7 +1135,7 @@
         async function loadCityData() {
             try {
                 // JSON dosyasını fetch ile yükle
-                const response = await fetch('public\\data\\sehirler.json');
+                const response = await fetch('/data/sehirler.json');
                 if (!response.ok) {
                     throw new Error('Şehir verileri yüklenemedi');
                 }
