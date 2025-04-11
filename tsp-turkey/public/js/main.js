@@ -1,5 +1,5 @@
-// Şehir verilerini yükleme
-const cities = [
+    // Şehir verilerini yükleme
+    const cities = [
     "ADANA", "ADIYAMAN", "AFYONKARAHİSAR", "AĞRI", "AMASYA", "ANKARA", "ANTALYA", "ARTVİN", 
     "AYDIN", "BALIKESİR", "BİLECİK", "BİNGÖL", "BİTLİS", "BOLU", "BURDUR", "BURSA", 
     "ÇANAKKALE", "ÇANKIRI", "ÇORUM", "DENİZLİ", "DİYARBAKIR", "EDİRNE", "ELAZIĞ", 
@@ -499,14 +499,23 @@ const cities = [
                         x: fromCoord.x + dx * 0.5,
                         y: fromCoord.y + dy * 0.5
                     };
-                    
-                    // Find relevant distance
+
+                    // Find relevant distance (sorunu düzelten kısım)
                     let distance = "?";
                     for (const segment of detailedDistances) {
-                        if (segment.from === fromCity && segment.to === toCity) {
+                        if ((segment.from === fromCity && segment.to === toCity) || 
+                            (segment.from === toCity && segment.to === fromCity)) {
                             distance = segment.distance;
                             break;
                         }
+                    }
+
+                    // Eğer hala mesafe bulunamadıysa (örneğin veri eksikse), yaklaşık bir hesaplama yapalım
+                    if (distance === "?") {
+                        // Piksel cinsinden Öklid mesafesini gerçek km'ye çevirme faktörü (yaklaşık)
+                        const scaleFactor = 2.5; // Bu değeri projenize göre ayarlayın
+                        const pixelDistance = Math.sqrt(dx * dx + dy * dy);
+                        distance = Math.round(pixelDistance * scaleFactor);
                     }
                     
                     // Create distance label with improved visibility
@@ -656,7 +665,7 @@ const cities = [
             return distances;
         } catch (error) {
             console.error('Veri yükleme hatası:', error);
-            alert('Şehir verileri yüklenirken bir hata oluştu. Lütfen sayfayı yenileyin.');
+            showNotification('Şehir verileri yüklenirken bir hata oluştu. Lütfen sayfayı yenileyin.', 'error');
             // Hata durumunda boş bir nesne döndür
             return {};
         }
@@ -809,13 +818,7 @@ const cities = [
         // Benzersiz şehirleri kontrol et
         const uniqueCities = new Set(selectedCities);
         if (uniqueCities.size !== selectedCities.length) {
-            resultDiv.innerHTML = `
-                <div style="color: var(--accent-color); padding: 20px; text-align: center;">
-                    <i class="fas fa-exclamation-triangle" style="font-size: 2rem; margin-bottom: 10px;"></i>
-                    <p>Lütfen farklı şehirler seçin! Aynı şehri birden fazla kez seçtiniz.</p>
-                </div>
-            `;
-            resultDiv.classList.add('visible');
+            showNotification('Lütfen farklı şehirler seçin! Aynı şehri birden fazla kez seçtiniz.', 'error');
             return;
         }
         
@@ -823,13 +826,30 @@ const cities = [
         const startCity = selectedCities[0];
         const citiesToVisit = selectedCities.slice(1);
         
+        // Mesafe verilerinin eksik olduğu şehir çiftlerini kontrol et
+        const missingDistances = [];
+        for (let i = 0; i < selectedCities.length; i++) {
+            for (let j = 0; j < selectedCities.length; j++) {
+                if (i !== j) {
+                    const city1 = selectedCities[i];
+                    const city2 = selectedCities[j];
+                    
+                    if (!distances[city1] || typeof distances[city1][city2] === 'undefined' || distances[city1][city2] === null) {
+                        missingDistances.push(`${city1} - ${city2}`);
+                    }
+                }
+            }
+        }
+        
+        // Eksik mesafe verisi varsa bildir
+        if (missingDistances.length > 0) {
+            showNotification(`Bazı şehirler arası mesafe verileri eksik: ${missingDistances.slice(0, 3).join(', ')}${missingDistances.length > 3 ? ' ve diğerleri...' : ''}`, 'error');
+            return;
+        }
+        
         // Şehir sayısı fazlaysa uyarı ver (permütasyon hesaplamaları büyük sayılar için yavaş olabilir)
         if (citiesToVisit.length > 10) {
-            const confirmContinue = confirm('Çok sayıda şehir seçtiniz. Hesaplama uzun sürebilir. Devam etmek istiyor musunuz?');
-            if (!confirmContinue) {
-                document.getElementById('loading').style.display = 'none';
-                return;
-            }
+            showNotification('Çok sayıda şehir seçtiniz. Hesaplama uzun sürebilir.', 'info');
         }
         
         // Basit bir yaklaşım: Tüm olası permütasyonları bul ve en kısa yolu hesapla
@@ -864,6 +884,14 @@ const cities = [
                         }
                         
                         const segmentDistance = distances[from][to];
+                        
+                        // Segment mesafesi Infinity veya NaN ise geçersiz rota
+                        if (!isFinite(segmentDistance) || isNaN(segmentDistance)) {
+                            console.warn(`${from} ile ${to} arasındaki mesafe geçersiz: ${segmentDistance}`);
+                            isValidRoute = false;
+                            break;
+                        }
+                        
                         totalDistance += segmentDistance;
                         
                         routeDetails.push({
@@ -873,7 +901,7 @@ const cities = [
                         });
                     }
                     
-                    if (isValidRoute && totalDistance < shortestDistance) {
+                    if (isValidRoute && isFinite(totalDistance) && totalDistance < shortestDistance) {
                         shortestDistance = totalDistance;
                         bestRoute = fullRoute;
                         detailedDistances = routeDetails;
@@ -884,6 +912,7 @@ const cities = [
                 bestRoute = [startCity];
                 let currentCity = startCity;
                 const remainingCities = [...citiesToVisit];
+                shortestDistance = 0; // Toplam mesafeyi sıfırla
                 
                 // En yakın şehri seçerek rotayı oluştur
                 while (remainingCities.length > 0) {
@@ -892,7 +921,20 @@ const cities = [
                     
                     for (let i = 0; i < remainingCities.length; i++) {
                         const nextCity = remainingCities[i];
+                        
+                        // Mesafe verisi kontrolü
+                        if (!distances[currentCity] || !distances[currentCity][nextCity]) {
+                            showNotification(`${currentCity} ile ${nextCity} arasında mesafe verisi bulunamadı`, 'error');
+                            return; // Hesaplamayı durdur
+                        }
+                        
                         const segmentDistance = distances[currentCity][nextCity];
+                        
+                        // Segment mesafesi kontrolü
+                        if (!isFinite(segmentDistance) || isNaN(segmentDistance)) {
+                            showNotification(`${currentCity} ile ${nextCity} arasındaki mesafe geçersiz: ${segmentDistance}`, 'error');
+                            return; // Hesaplamayı durdur
+                        }
                         
                         if (segmentDistance < shortestSegment) {
                             shortestSegment = segmentDistance;
@@ -918,8 +960,20 @@ const cities = [
                 }
                 
                 // Başlangıç şehrine geri dön
-                bestRoute.push(startCity);
+                if (!distances[currentCity] || !distances[currentCity][startCity]) {
+                    showNotification(`${currentCity} ile ${startCity} arasında mesafe verisi bulunamadı`, 'error');
+                    return; // Hesaplamayı durdur
+                }
+                
                 const finalSegmentDistance = distances[currentCity][startCity];
+                
+                // Son segment mesafesi kontrolü
+                if (!isFinite(finalSegmentDistance) || isNaN(finalSegmentDistance)) {
+                    showNotification(`${currentCity} ile ${startCity} arasındaki mesafe geçersiz: ${finalSegmentDistance}`, 'error');
+                    return; // Hesaplamayı durdur
+                }
+                
+                bestRoute.push(startCity);
                 detailedDistances.push({
                     from: currentCity,
                     to: startCity,
@@ -928,55 +982,62 @@ const cities = [
                 shortestDistance += finalSegmentDistance;
             }
             
-            // Sonuçları göster
-            if (bestRoute) {
-                document.getElementById('route-display').innerHTML = bestRoute.map((city, index) => {
-                    if (index === bestRoute.length - 1) {
-                        return `<span style="color: var(--accent-color);">${city}</span>`;
-                    }
-                    return `<span style="color: var(--secondary-color);">${city}</span>`;
-                }).join(' <i class="fas fa-arrow-right"></i> ');
+            // Rota kontrolü ve sonuçları gösterme
+            if (bestRoute && isFinite(shortestDistance)) {
+                const routeDisplay = document.getElementById('route-display');
+                if (routeDisplay) {
+                    routeDisplay.innerHTML = bestRoute.map((city, index) => {
+                        if (index === bestRoute.length - 1) {
+                            return `<span style="color: var(--accent-color);">${city}</span>`;
+                        }
+                        return `<span style="color: var(--secondary-color);">${city}</span>`;
+                    }).join(' <i class="fas fa-arrow-right"></i> ');
+                }
                 
-                document.getElementById('distance-display').textContent = `${shortestDistance} km`;
+                const distanceDisplay = document.getElementById('distance-display');
+                if (distanceDisplay) {
+                    distanceDisplay.textContent = `${shortestDistance} km`;
+                }
                 
                 // Detaylı mesafeleri göster
                 const detailedDistancesContainer = document.getElementById('detailed-distances');
-                detailedDistancesContainer.innerHTML = '<ul>';
-
-                detailedDistances.forEach((segment, index) => {
-                    detailedDistancesContainer.innerHTML += `
-                        <li>
-                            <span><strong>${index + 1}.</strong> ${segment.from} → ${segment.to}</span>
-                            <strong>${segment.distance} km</strong>
-                        </li>
-                    `;
-                });
-
-                detailedDistancesContainer.innerHTML += '</ul>';
-
-                resultDiv.classList.add('visible');
+                if (detailedDistancesContainer) {
+                    detailedDistancesContainer.innerHTML = '<ul>';
+    
+                    detailedDistances.forEach((segment, index) => {
+                        detailedDistancesContainer.innerHTML += `
+                            <li>
+                                <span><strong>${index + 1}.</strong> ${segment.from} → ${segment.to}</span>
+                                <strong>${segment.distance} km</strong>
+                            </li>
+                        `;
+                    });
+    
+                    detailedDistancesContainer.innerHTML += '</ul>';
+                }
+    
+                if (resultDiv) {
+                    resultDiv.classList.add('visible');
+                    // Sonuca kaydır
+                    resultDiv.scrollIntoView({ behavior: 'smooth' });
+                }
                 
-                // Sonuca kaydır
-                resultDiv.scrollIntoView({ behavior: 'smooth' });
+                // Harita üzerinde rotayı göster
+                setTimeout(() => {
+                    try {
+                        animateRoute(bestRoute, cityCoordinates, detailedDistances);
+                    } catch (error) {
+                        console.error('Harita animasyonu hatası:', error);
+                        showNotification('Harita üzerinde rota gösterilirken bir hata oluştu.', 'error');
+                    }
+                }, 600);
             } else {
                 // Geçerli rota bulunamadı
-                resultDiv.innerHTML = `
-                    <div style="color: var(--accent-color); padding: 20px; text-align: center;">
-                        <i class="fas fa-exclamation-triangle" style="font-size: 2rem; margin-bottom: 10px;"></i>
-                        <p>Seçilen şehirler arasında geçerli bir rota bulunamadı. Lütfen başka şehirler seçin.</p>
-                    </div>
-                `;
-                resultDiv.classList.add('visible');
+                showNotification('Seçilen şehirler arasında geçerli bir rota bulunamadı. Lütfen başka şehirler seçin.', 'error');
             }
         } catch (error) {
             console.error('Rota hesaplama hatası:', error);
-            resultDiv.innerHTML = `
-                <div style="color: var(--accent-color); padding: 20px; text-align: center;">
-                    <i class="fas fa-exclamation-triangle" style="font-size: 2rem; margin-bottom: 10px;"></i>
-                    <p>Rota hesaplanırken bir hata oluştu: ${error.message}</p>
-                </div>
-            `;
-            resultDiv.classList.add('visible');
+            showNotification('Rota hesaplanırken bir hata oluştu: ' + error.message, 'error');
         }
     }
 
@@ -1000,6 +1061,9 @@ const cities = [
     // Ana uygulama başlangıcı
     document.addEventListener('DOMContentLoaded', async () => {
         try {
+            // Popup için CSS ekle
+            addPopupStyles();
+            
             // Şehir ve mesafe verilerini yükle
             const distances = await loadCityData();
             
@@ -1007,7 +1071,7 @@ const cities = [
             initializeUI(distances);
         } catch (error) {
             console.error('Uygulama başlatma hatası:', error);
-            alert('Uygulama başlatılırken bir hata oluştu. Lütfen sayfayı yenileyin.');
+            showNotification('Uygulama başlatılırken bir hata oluştu. Lütfen sayfayı yenileyin.', 'error');
         }
     });
 
@@ -1059,6 +1123,16 @@ const cities = [
                 }
             }, 600); // Hesaplama sonrasında çalışması için hafif gecikme
         });
+    });
+
+    document.addEventListener('DOMContentLoaded', () => {
+        // Clear route butonuna event listener ekle
+        const clearRouteButton = document.getElementById('clear-route');
+        if (clearRouteButton) {
+            clearRouteButton.addEventListener('click', () => {
+                clearRoute();
+            });
+        }
     });
 
     // Harita lejantını oluştur
@@ -1173,3 +1247,206 @@ const cities = [
             }
         }
     }, 250);
+
+    // Popup bildirim sistemini ekle
+    function showNotification(message, type = 'error') {
+        // Varsa mevcut popup'ı kaldır
+        const existingPopup = document.getElementById('custom-popup');
+        if (existingPopup) {
+            existingPopup.remove();
+        }
+        
+        // Popup container oluştur
+        const popup = document.createElement('div');
+        popup.id = 'custom-popup';
+        popup.className = `custom-popup ${type}`;
+        
+        // Popup içeriğini ekle
+        popup.innerHTML = `
+            <div class="popup-content">
+                <div class="popup-icon">
+                    ${type === 'error' ? '<i class="fas fa-exclamation-circle"></i>' : '<i class="fas fa-info-circle"></i>'}
+                </div>
+                <div class="popup-message">${message}</div>
+                <div class="popup-close"><i class="fas fa-times"></i></div>
+            </div>
+        `;
+        
+        // Body'e ekle
+        document.body.appendChild(popup);
+        
+        // Popup'ı göster (animasyon için)
+        setTimeout(() => {
+            popup.classList.add('show');
+        }, 10);
+        
+        // Kapatma butonu click eventi
+        const closeBtn = popup.querySelector('.popup-close');
+        closeBtn.addEventListener('click', () => {
+            popup.classList.remove('show');
+            setTimeout(() => {
+                popup.remove();
+            }, 300);
+        });
+        
+        // 5 saniye sonra otomatik kapat
+        const autoCloseTimeout = setTimeout(() => {
+            popup.classList.remove('show');
+            setTimeout(() => {
+                popup.remove();
+            }, 300);
+        }, 5000);
+        
+        // Popup üzerine gelince otomatik kapanmayı durdur
+        popup.addEventListener('mouseenter', () => {
+            clearTimeout(autoCloseTimeout);
+        });
+        
+        // Popup üzerinden ayrılınca yeni bir otomatik kapanma zamanlayıcısı başlat
+        popup.addEventListener('mouseleave', () => {
+            const newAutoCloseTimeout = setTimeout(() => {
+                popup.classList.remove('show');
+                setTimeout(() => {
+                    popup.remove();
+                }, 300);
+            }, 3000);
+            
+            popup.addEventListener('mouseenter', () => {
+                clearTimeout(newAutoCloseTimeout);
+            }, { once: true });
+        });
+    }
+
+    // Alert fonksiyonunu geçersiz kıl ve kendi popup'ımızı kullanalım
+    window.originalAlert = window.alert;
+    window.alert = function(message) {
+        showNotification(message, 'info');
+    };
+
+    // Popup için CSS stillerini ekle
+    function addPopupStyles() {
+        const style = document.createElement('style');
+        style.textContent = `
+            .custom-popup {
+                position: fixed;
+                bottom: 20px;
+                left: 50%;
+                transform: translateX(-50%) translateY(100px);
+                background-color: white;
+                border-radius: 8px;
+                box-shadow: 0 5px 20px rgba(0,0,0,0.2);
+                z-index: 9999;
+                opacity: 0;
+                transition: transform 0.3s ease, opacity 0.3s ease;
+                max-width: 90%;
+                width: 400px;
+            }
+            
+            .custom-popup.show {
+                transform: translateX(-50%) translateY(0);
+                opacity: 1;
+            }
+            
+            .popup-content {
+                display: flex;
+                align-items: center;
+                padding: 15px 20px;
+            }
+            
+            .popup-icon {
+                margin-right: 15px;
+                font-size: 24px;
+            }
+            
+            .custom-popup.error .popup-icon {
+                color: #e74c3c;
+            }
+            
+            .custom-popup.info .popup-icon {
+                color: #3498db;
+            }
+            
+            .custom-popup.success .popup-icon {
+                color: #2ecc71;
+            }
+            
+            .popup-message {
+                flex: 1;
+                font-size: 14px;
+                color: #333;
+            }
+            
+            .popup-close {
+                margin-left: 15px;
+                cursor: pointer;
+                font-size: 16px;
+                color: #7f8c8d;
+                transition: color 0.2s;
+            }
+            
+            .popup-close:hover {
+                color: #2c3e50;
+            }
+            
+            .custom-popup.error {
+                border-left: 4px solid #e74c3c;
+            }
+            
+            .custom-popup.info {
+                border-left: 4px solid #3498db;
+            }
+            
+            .custom-popup.success {
+                border-left: 4px solid #2ecc71;
+            }
+            
+            @media (max-width: 600px) {
+                .custom-popup {
+                    width: 90%;
+                }
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
+    function clearRoute() {
+        // Mevcut SVG overlay'i bul ve temizle
+        const existingSvg = document.getElementById('route-overlay');
+        if (existingSvg) {
+            // Önce tüm alt elemanları temizle (daha güvenli temizleme)
+            while (existingSvg.firstChild) {
+                existingSvg.removeChild(existingSvg.firstChild);
+            }
+            // Sonra SVG elementinin kendisini kaldır
+            existingSvg.remove();
+        }
+    
+        // Map container içindeki tüm SVG elementlerini kontrol et ve temizle
+        const mapContainer = document.querySelector('.map-container');
+        if (mapContainer) {
+            const allSvgElements = mapContainer.querySelectorAll('svg');
+            allSvgElements.forEach(svg => {
+                // Önce tüm alt elemanları temizle
+                while (svg.firstChild) {
+                    svg.removeChild(svg.firstChild);
+                }
+                // Sonra SVG elementinin kendisini kaldır
+                svg.remove();
+            });
+        }
+    
+        // Sonuç panelini gizle
+        const resultDiv = document.getElementById('result');
+        if (resultDiv) {
+            resultDiv.classList.remove('visible');
+        }
+    
+        // Harita lejantını kaldır
+        const existingLegend = document.querySelector('.legend');
+        if (existingLegend) {
+            existingLegend.remove();
+        }
+    
+        // Kullanıcıya bildirim göster
+        showNotification('Rota başarıyla temizlendi!', 'success');
+    }

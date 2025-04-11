@@ -317,6 +317,28 @@ footer {
     transform: translateY(-2px);
 }
 
+.clear-button {
+    display: block;
+    width: 100%;
+    padding: 12px;
+    background-color: var(--accent-color);
+    color: white;
+    border: none;
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 1rem;
+    transition: all 0.3s;
+    margin-top: 20px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.clear-button:hover {
+    background-color: #c0392b;
+    transform: translateY(-2px);
+}
+
 #result h3 {
     color: var(--primary-color);
     margin-bottom: 10px;
