@@ -434,4 +434,59 @@ footer {
         width: 100%;
         margin-bottom: 5px;
     }
+
+    .site-footer {
+        background-color: #2c3e50;
+        color: #ecf0f1;
+        padding: 20px 0;
+        margin-top: 40px;
+      }
+      
+      .footer-container {
+        width: 90%;
+        max-width: 1200px;
+        margin: 0 auto;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      
+      .copyright {
+        margin: 0;
+        font-size: 0.9rem;
+      }
+      
+      .developer-info {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      
+      .developer-info p {
+        margin: 0;
+        font-size: 0.9rem;
+      }
+      
+      .github-link {
+        display: flex;
+        align-items: center;
+        transition: transform 0.2s ease;
+      }
+      
+      .github-link:hover {
+        transform: scale(1.1);
+      }
+      
+      .github-icon {
+        fill: #ecf0f1;
+      }
+      
+      @media (max-width: 600px) {
+        .footer-container {
+          flex-direction: column;
+          gap: 15px;
+          text-align: center;
+        }
+      }
 }
